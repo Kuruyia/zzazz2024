@@ -1,0 +1,6 @@
+[package]
+name = "chall3_reqwest"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]

@@ -1,0 +1,5 @@
+; CB2_DoHallOfFameScreenDontSaveData
+300     030022C4    D9 36 17 08
+
+; Task_Hof_HandlePaletteOnExit
+1500    03005E00    61 40 17 08
