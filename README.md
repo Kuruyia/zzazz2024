@@ -10,25 +10,20 @@ For this year's April Fools Event, TheZZAZZGlitch set the bar very high up. We g
 
 I will not really talk about the game itself and its challenges here (I was too lazy to finish them all, and the game gets very hard after finishing it :c), and focus more on the traditional hacking challenges that this year offers us.
 
-This was a bit different than the previous years, as the hacking challenges were directly available online and not in a spooky scary dark cr4ck cavern. There was four challenges in total, that could be completed in any order, and it is noted that "Their difficulty is equivalent to 3rd-4th tiers of previous years.".
+This was a bit different from the previous years, as the hacking challenges were directly available online and not in a spooky scary dark cr4ck cavern. There were four challenges in total, that could be completed in any order, and it is noted that "Their difficulty is equivalent to 3rd-4th tiers of previous years.".
 
 So, let's check them out!
 
-## Hacking Challenge I - Hall of Fame Data Recovery (Red/Blue)
+This document is mostly dedicated to the [pret](https://github.com/pret) project and its contributors. Without it, it would have been a lot tougher to get over the challenges without the symbols and clear code they made available for everyone to see, so huge thanks!
 
-Coming soon...
+## Write-ups
 
-## Hacking Challenge II - The Sus-file (Crystal)
+All the write-ups are present in a separate file for each challenge:
 
-Coming soon...
-
-## Hacking Challenge III - gbhttp
-
-Coming soon...
-
-## Hacking Challenge IV - Pokémon Write-What-Where Version (Emerald)
-
-Coming soon...
+- [Hacking Challenge I - Hall of Fame Data Recovery (Red/Blue)](./chall1.md)
+- [Hacking Challenge II - The Sus-file (Crystal)](./chall2.md)
+- [Hacking Challenge III - gbhttp](./chall3.md)
+- [Hacking Challenge IV - Pokémon Write-What-Where Version (Emerald)](./chall4.md)
 
 ## Directory structure
 - [`challenges/`](./challenges/) - Some files related to the hacking challenges.
