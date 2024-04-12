@@ -1,7 +1,18 @@
 use std::{fs, io};
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::PathBuf;
+
+use clap::{arg, Parser};
 use regex::Regex;
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// The path to the [`pret/pokecrystal`](https://github.com/pret/pokecrystal) repository cloned locally.
+    /// This has been tested with commit `e8079e6d4849961dc1706b5b9b9f2c9cd693f509`.
+    #[arg(short, long)]
+    pokecrystal_repo_path: PathBuf,
+}
 
 #[derive(Debug)]
 enum Error {
@@ -513,8 +524,8 @@ impl Map {
         &self.tileset_file
     }
 
-    fn load_used_blocks(&mut self, dir: &str) -> Result<(), Error> {
-        let path = Path::new(dir).join(self.blk_filename.clone());
+    fn load_used_blocks(&mut self, dir: PathBuf) -> Result<(), Error> {
+        let path = dir.join(self.blk_filename.clone());
         let file_contents = fs::read(path).map_err(Error::IoError)?;
         self.used_blocks = file_contents.into_iter().map(|v| v as usize).collect();
 
@@ -522,9 +533,9 @@ impl Map {
     }
 }
 
-fn get_used_tiles_per_tileset() -> Result<(Vec<Tileset>, HashSet<String>), Error> {
+fn get_used_tiles_per_tileset(repo_dir: &PathBuf) -> Result<(Vec<Tileset>, HashSet<String>), Error> {
     // Get all the block file paths
-    let block_file_paths = fs::read_dir("../../../pokecrystal-master/data/tilesets")
+    let block_file_paths = fs::read_dir(repo_dir.join("data/tilesets/"))
         .map_err(Error::IoError)?
         .map(|res| res.map(|e| e.path()))
         .filter(|v| v.as_ref().unwrap().extension().unwrap().eq("bin"))
@@ -568,9 +579,9 @@ fn remove_uninteresting_tiles(used_tiles_per_tileset: &mut Vec<Tileset>) {
     used_tiles_per_tileset.retain(|v| v.used_tiles_len() == tiles_of_interest.len());
 }
 
-fn get_maps() -> Result<Vec<Map>, Error> {
+fn get_maps(repo_dir: &PathBuf) -> Result<Vec<Map>, Error> {
     let mut res = Vec::<Map>::new();
-    let map_spec = fs::read_to_string("../../../pokecrystal-master/data/maps/maps.asm").map_err(Error::IoError)?;
+    let map_spec = fs::read_to_string(repo_dir.join("data/maps/maps.asm")).map_err(Error::IoError)?;
     let re = Regex::new(r"(?m)map\s*(.*?),\s*(.*?),", ).map_err(Error::RegexError)?;
 
     for line in map_spec.lines() {
@@ -601,9 +612,9 @@ fn check_map_block_usage(map: &Map, tilesets: &Vec<Tileset>) -> bool {
     true
 }
 
-fn check_map_strings(maps: &Vec<Map>) -> Result<(), Error> {
+fn check_map_strings(repo_dir: &PathBuf, maps: &Vec<Map>) -> Result<(), Error> {
     for map in maps {
-        let path = Path::new("../../../pokecrystal-master/maps/").join(&map.asm_filename);
+        let path = repo_dir.join("maps/").join(&map.asm_filename);
         let map_asm = fs::read_to_string(path).map_err(Error::IoError)?;
 
         let player_find = map_asm.find("<PLAYER>");
@@ -620,9 +631,9 @@ fn check_map_strings(maps: &Vec<Map>) -> Result<(), Error> {
     Ok(())
 }
 
-fn get_tilemaps_answering_constraints() -> Result<Vec<Tileset>, Error> {
+fn get_tilemaps_answering_constraints(repo_dir: &PathBuf) -> Result<Vec<Tileset>, Error> {
     // Get all the block file paths
-    let block_file_paths = fs::read_dir("../../../pokecrystal-master/data/tilesets")
+    let block_file_paths = fs::read_dir(repo_dir.join("data/tilesets/"))
         .map_err(Error::IoError)?
         .map(|res| res.map(|e| e.path()))
         .filter(|v| v.as_ref().unwrap().extension().unwrap().eq("bin"))
@@ -665,10 +676,13 @@ fn remove_maps_not_using_tileset(maps: &mut Vec<Map>, tilesets: &Vec<Tileset>) {
 }
 
 fn main() -> Result<(), Error> {
+    // Get the path to the pret/pokecrystal repo from the CLI arguments
+    let args = Args::parse();
+
     // Get the tilesets and maps
-    let (mut used_tiles_per_tileset, found_tileset_files) = get_used_tiles_per_tileset()?;
+    let (mut used_tiles_per_tileset, found_tileset_files) = get_used_tiles_per_tileset(&args.pokecrystal_repo_path)?;
     remove_uninteresting_tiles(&mut used_tiles_per_tileset);
-    let mut maps = get_maps()?;
+    let mut maps = get_maps(&args.pokecrystal_repo_path)?;
 
     // Make sure that we got all the tilemaps for the maps
     for map in &maps {
@@ -679,20 +693,20 @@ fn main() -> Result<(), Error> {
 
     // Check each map for their block usage
     for map in &mut maps {
-        map.load_used_blocks(&"../../../pokecrystal-master/maps/")?;
+        map.load_used_blocks(args.pokecrystal_repo_path.join("maps/"))?;
     }
 
     maps.retain(|v| check_map_block_usage(v, &used_tiles_per_tileset));
 
     // Check each map for their strings
-    check_map_strings(&maps)?;
+    check_map_strings(&args.pokecrystal_repo_path, &maps)?;
 
     // Second try
     println!("===>");
-    let tilesets = get_tilemaps_answering_constraints()?;
-    let mut maps = get_maps()?;
+    let tilesets = get_tilemaps_answering_constraints(&args.pokecrystal_repo_path)?;
+    let mut maps = get_maps(&args.pokecrystal_repo_path)?;
     remove_maps_not_using_tileset(&mut maps, &tilesets);
-    check_map_strings(&maps)?;
+    check_map_strings(&args.pokecrystal_repo_path, &maps)?;
 
     Ok(())
 }

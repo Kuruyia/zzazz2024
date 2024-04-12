@@ -1,7 +1,9 @@
-use std::collections::HashMap;
 use std::{cmp, fs};
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::PathBuf;
+
 use regex::Regex;
+
 use crate::error::Error;
 use crate::tilemap::Tilemap;
 use crate::tileset::Tileset;
@@ -503,16 +505,16 @@ impl Map {
         &self.tilemap
     }
 
-    pub fn load_blocks(&mut self, dir: &str) -> Result<(), Error> {
-        let path = Path::new(dir).join(self.blk_filename.clone());
+    pub fn load_blocks(&mut self, repo_dir: &PathBuf) -> Result<(), Error> {
+        let path = repo_dir.join("maps/").join(self.blk_filename.clone());
         let file_contents = fs::read(path).map_err(Error::IoError)?;
         self.blocks = file_contents.into_iter().collect();
 
         Ok(())
     }
 
-    pub fn load_attributes(&mut self, file: &str) -> Result<(), Error> {
-        let file_contents = fs::read_to_string(file).map_err(Error::IoError)?;
+    pub fn load_attributes(&mut self, repo_dir: &PathBuf) -> Result<(), Error> {
+        let file_contents = fs::read_to_string(repo_dir.join("data/maps/attributes.asm")).map_err(Error::IoError)?;
         let re = Regex::new(format!(r"(?m)map_attributes\s*{},\s*(.*?),\s*\$(.*?),.*", self.name).as_str()).map_err(Error::RegexError)?;
 
         for line in file_contents.lines() {
@@ -529,8 +531,8 @@ impl Map {
         Err(Error::MapAttributesNotFound)
     }
 
-    pub fn load_size(&mut self, file: &str) -> Result<(), Error> {
-        let file_contents = fs::read_to_string(file).map_err(Error::IoError)?;
+    pub fn load_size(&mut self, repo_dir: &PathBuf) -> Result<(), Error> {
+        let file_contents = fs::read_to_string(repo_dir.join("constants/map_constants.asm")).map_err(Error::IoError)?;
         let re = Regex::new(format!(r"(?m)map_const\s*{},\s*(\d+),\s*(\d+)", self.id).as_str()).map_err(Error::RegexError)?;
 
         for line in file_contents.lines() {

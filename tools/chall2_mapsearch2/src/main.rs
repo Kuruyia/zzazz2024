@@ -1,6 +1,8 @@
 use std::{fs, io};
 use std::collections::HashMap;
+use std::path::PathBuf;
 
+use clap::Parser;
 use regex::Regex;
 
 use crate::error::Error;
@@ -12,9 +14,18 @@ mod map;
 mod error;
 mod tilemap;
 
-fn load_tilesets() -> Result<Vec<Tileset>, Error> {
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// The path to the [`pret/pokecrystal`](https://github.com/pret/pokecrystal) repository cloned locally.
+    /// This has been tested with commit `e8079e6d4849961dc1706b5b9b9f2c9cd693f509`.
+    #[arg(short, long)]
+    pokecrystal_repo_path: PathBuf,
+}
+
+fn load_tilesets(repo_dir: &PathBuf) -> Result<Vec<Tileset>, Error> {
     // Get all the block file paths
-    let block_file_paths = fs::read_dir("../../../pokecrystal-master/data/tilesets")
+    let block_file_paths = fs::read_dir(repo_dir.join("data/tilesets/"))
         .map_err(Error::IoError)?
         .map(|res| res.map(|e| e.path()))
         .filter(|v| v.as_ref().unwrap().extension().unwrap().eq("bin"))
@@ -41,9 +52,9 @@ fn load_tilesets() -> Result<Vec<Tileset>, Error> {
     Ok(res)
 }
 
-fn load_maps() -> Result<Vec<Map>, Error> {
+fn load_maps(repo_dir: &PathBuf) -> Result<Vec<Map>, Error> {
     let mut res = Vec::<Map>::new();
-    let map_spec = fs::read_to_string("../../../pokecrystal-master/data/maps/maps.asm").map_err(Error::IoError)?;
+    let map_spec = fs::read_to_string(repo_dir.join("data/maps/maps.asm")).map_err(Error::IoError)?;
     let re = Regex::new(r"(?m)map\s*(.*?),\s*(.*?),", ).map_err(Error::RegexError)?;
 
     for line in map_spec.lines() {
@@ -76,10 +87,13 @@ fn check_map_constraints(map: &Map) -> Result<Vec<(isize, isize)>, Error> {
 }
 
 fn main() -> Result<(), Error> {
+    // Get the path to the pret/pokecrystal repo from the CLI arguments
+    let args = Args::parse();
+
     // Get the tilesets and maps
     println!("Loading tilesets and maps...");
-    let tilesets = load_tilesets()?;
-    let mut maps = load_maps()?;
+    let tilesets = load_tilesets(&args.pokecrystal_repo_path)?;
+    let mut maps = load_maps(&args.pokecrystal_repo_path)?;
     println!("Loaded {} maps and {} tilesets", maps.len(), tilesets.len());
 
     // TODO: Remove me
@@ -88,9 +102,9 @@ fn main() -> Result<(), Error> {
     // Load the blocks and size of each map
     println!("Loading map extended data...");
     for map in &mut maps {
-        map.load_blocks(&"../../../pokecrystal-master/maps/")?;
-        map.load_attributes(&"../../../pokecrystal-master/data/maps/attributes.asm")?;
-        map.load_size(&"../../../pokecrystal-master/constants/map_constants.asm")?;
+        map.load_blocks(&args.pokecrystal_repo_path)?;
+        map.load_attributes(&args.pokecrystal_repo_path)?;
+        map.load_size(&args.pokecrystal_repo_path)?;
     }
 
     // Build the tilemap of each map
