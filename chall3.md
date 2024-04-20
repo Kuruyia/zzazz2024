@@ -1,6 +1,6 @@
 # Hacking Challenge III - gbhttp
 
-_"The GBZ80 architecture is truly amazing - so amazing that we've created a Game Boy HTTP server! It's running at [http://fools2024.online:26273/](http://fools2024.online:26273/). However, we haven't done a proper security audit of our code yet. Think you can steal the secret password from our test server? The [source code](https://fools2024.online/assets/gbhttp.asm) is available for you to review."_
+> The GBZ80 architecture is truly amazing - so amazing that we've created a Game Boy HTTP server! It's (no longer) running at [http://fools2024.online:26273/](http://fools2024.online:26273/). However, we haven't done a proper security audit of our code yet. Think you can steal the secret password from our test server? The [source code](https://github.com/zzazzdzz/fools2024/blob/main/hack_challs/files/gbhttp.asm) is available for you to review.
 
 This challenge is interesting because it is the only one in the list that is not tied to a specific Pokémon game, so it doesn't require any knowledge about Pokémon glitchology. Rather, we are given [the source code](https://github.com/Kuruyia/zzazz2024/blob/60bb7dae092dba08172a52678ce2638830f0ab9c/challenges/gbhttp.asm) of an HTTP server that runs on the Game Boy, and we need to find a way to exploit it and extract a password.  
 The code was already neatly documented through comments, so reading it was more pleasant than just reading raw assembly (some comments in the linked file are mine).

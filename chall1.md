@@ -1,7 +1,7 @@
 # Hacking Challenge I - Hall of Fame Data Recovery (Red/Blue)
 
-_"B1F is a truly amazing item. I used it to keep a small ACE payload which reminded me of my super secret password. But I encountered Missingno. in battle, and my payload got destroyed!_  
-_Think it's still possible to recover it? Here's [the save file I got after the incident](https://fools2024.online/assets/rest_in_miss_forever_ingno.sav)."_
+> B1F is a truly amazing item. I used it to keep a small ACE payload which reminded me of my super secret password. But I encountered Missingno. in battle, and my payload got destroyed!  
+> Think it's still possible to recover it? Here's [the save file I got after the incident](https://github.com/zzazzdzz/fools2024/blob/main/hack_challs/files/rest_in_miss_forever_ingno.sav).
 
 Let's start with the first challenge of the list (although this was not the one I started with, but whatever!): in this one, we're given a save file for Pokémon Red/Blue, and we need to recover the password from it.
 
