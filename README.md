@@ -2,6 +2,8 @@
 
 This repo contains some codes and notes about how I've done the challenges of [TheZZAZZGlitch's April Fools Event 2024](https://zzazzdzz.github.io/fools2024/index.html) (funny meme intro video is available [here](https://www.youtube.com/watch?v=fvfFRbwwwn0)).
 
+[The results video](https://youtu.be/OqeNu3nfDhA) is now available, go check it out to see what the other participants have done and to learn more about this event!
+
 I'd like to thank [TheZZAZZGlitch](https://www.youtube.com/user/TheZZAZZGlitch) for organizing this event once again, as well as the community for playing it. Once again, I had a very fun week trying to overcome the challenges that it had to offer.
 
 I've participated in the 2018 and 2022 events, and am very happy to be a part of the event once more!
